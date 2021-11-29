@@ -1,0 +1,48 @@
+# We need to preprocess data and find the least correlated continent
+
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+
+# 1.1 Preprocessing data
+df=pd.read_csv("covid-19cases.csv")
+file = "covid-19cases.csv"
+df = df.drop(df[df.date == 'For Notes: '].index)
+def checkNa(DF):
+    DF=DF.isna().any()
+    print(DF)
+drop_elements =['Unnamed: 0','Unnamed: 40','Unnamed: 41']
+df = df.drop(drop_elements, axis = 1)
+for i in ['total_cases','new_cases','new_cases_smoothed']:
+    df[[i]] = df[[i]].fillna(0)
+df=df.dropna(subset=['continent'])
+# Change numbers in 'month' to names
+df['month'] = pd.to_datetime(df['month'], format='%m').dt.month_name().str.slice(stop=3)
+df = df[['continent','location','month','year','total_cases']]
+print(df)
+
+# 1.2 Aggregate data
+# group cases through 'continent','location','month','year'
+df_all = df.groupby(['continent','location','month','year']).agg({'total_cases': np.max})
+# df = df.groupby(['continent']).size().reset_index(name='total_cases')
+print(df_all)
+# group cases through world by month and year
+df_world = df_all.groupby(['month','year']).agg({'total_cases': np.sum}).reset_index()
+df_world['continent'] = 'World'
+df_svod = df_all.groupby(['continent','month','year']).agg({'total_cases': np.sum})
+df_svod = df_svod.sort_values(['year','month']).reset_index()
+df_conc = pd.concat([df_svod, df_world])
+print(df_conc)
+
+df_end = df_conc.pivot(index=['month','year'], columns='continent', values=['total_cases'])
+df_corr = df_end.corr()
+
+# 1.3 Visualisation
+sns.barplot(y='continent', x=('total_cases', 'World'),  data=df_corr[('total_cases', 'World')].sort_values().reset_index())
+plt.title('Correlation of total_cases COVID-19 continents with the World')
+plt.xlabel('Correlation')
+plt.ylabel('Continents')
+plt.show()
+
+# According to the barplot we see the least correlated continent is Europe
